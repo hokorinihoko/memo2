@@ -1,0 +1,106 @@
+:root{
+  --bg:#0b1220; 
+  --platform:#8bd3c7; 
+  --player:#ffd166; 
+  --text:#e6f0ff;
+}
+
+html, body{
+  height:100%;
+  margin:0;
+  font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN","Segoe UI",Roboto,"Yu Gothic",sans-serif;
+  background:var(--bg);
+  color:var(--text);
+}
+
+.wrap {
+  display: flex;
+  height: 100vh;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+canvas {
+  width: 80vw;
+  height: 80vh;
+  max-width: 480px;
+  max-height: 720px;
+  background: linear-gradient(180deg,#071021 0%, #062032 60%);
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+}
+
+.ui{
+  width:300px;
+  max-width:30vw;
+  color:var(--text);
+}
+
+h1{ margin:0 0 8px 0; font-size:18px }
+p{ margin:6px 0; font-size:13px; line-height:1.4 }
+.controls{ margin-top:12px }
+.btns{ margin-top:10px }
+.btn{
+  display:inline-block;
+  padding:8px 12px;
+  border-radius:8px;
+  background:#123243;
+  color:var(--text);
+  cursor:pointer;
+  margin-right:8px;
+}
+.footer{ margin-top:18px; font-size:12px; opacity:0.9 }
+.score{ font-weight:700; font-size:20px; margin-top:8px }
+
+@media(max-width:800px){
+  .wrap{ flex-direction:column }
+  .ui{ width:90vw; max-width:none }
+}
+
+/* ゲームオーバーオーバーレイ */
+#gameOverOverlay{
+  position:absolute;
+  top:0; left:0;
+  width:100%; height:100%;
+  background:rgba(0,0,0,0.55);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex-direction:column;
+  color:#fff;
+  font-size:22px;
+  display:none;
+  z-index:10;
+}
+
+/* スマホ用操作ボタン */
+#touchControls{
+  position:absolute;
+  bottom:20px;
+  left:50%;
+  transform:translateX(-50%);
+  width:90%;
+  max-width:500px;
+  display:flex;
+  justify-content:space-between;
+  pointer-events:none; /* タッチだけ反応 */
+  z-index:20;
+}
+
+.touch-btn{
+  width:60px;
+  height:60px;
+  background:rgba(18,50,67,0.7);
+  color:white;
+  font-size:24px;
+  text-align:center;
+  line-height:60px;
+  border-radius:50%;
+  user-select:none;
+  pointer-events:auto;
+  touch-action:none;
+}
+

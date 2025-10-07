@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>油揚げジャンプゲーム SPA</title>
+<style>
+:root{
+  --bg:#0b1220; 
+  --platform:#8bd3c7; 
+  --player:#ffd166; 
+  --text:#e6f0ff;
+}
+body{
+  margin:0; font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN","Segoe UI",Roboto,"Yu Gothic",sans-serif;
+  background:var(--bg); color:var(--text);
+}
+.screen{
+  display:none; width:100%; height:100vh; justify-content:center; align-items:center; flex-direction:column; position:relative;
+}
+.active{ display:flex; }
+button{ padding:8px 12px; margin:5px; border:none; border-radius:6px; background:#123243; color:var(--text); cursor:pointer; }
+canvas{
+  width:80vw; height:80vh; max-width:480px; max-height:720px; background: linear-gradient(180deg,#071021 0%, #062032 60%); border-radius:10px; box-shadow:0 8px 30px rgba(0,0,0,0.6);
+}
+/* ゲームオーバーオーバーレイ */
+#gameOverOverlay{
+  position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.55); display:flex; align-items:center; justify-content:center; flex-direction:column; color:#fff; font-size:22px; display:none; z-index:10;
+}
+/* スマホ操作ボタン */
+#touchControls{ position:absolute; bottom:20px; left:50%; transform:translateX(-50%); width:90%; max-width:500px; display:flex; justify-content:space-between; pointer-events:none; z-index:20; }
+.touch-btn{ width:60px; height:60px; background:rgba(18,50,67,0.7); color:white; font-size:24px; text-align:center; line-height:60px; border-radius:50%; user-select:none; pointer-events:auto; touch-action:none; }
+</style>
+</head>
+<body>
+
+<!-- HOME -->
+<div id="homeScreen" class="screen active">
+  <h1>ホーム</h1>
+  <button id="playBtn">ゲーム開始</button>
+  <button id="gachaBtn">ガチャ</button>
+  <button id="skinBtn">スキン</button>
+  <button id="accountBtn">アカウント</button>
+  <p>GP: <span id="gpDisplay">25</span></p>
+</div>
+
+<!-- GAME -->
+<div id="gameScreen" class="screen">
+  <canvas id="game"></canvas>
+  <div>
+    <button id="backHomeFromGame">ホームに戻る</button>
+  </div>
+  <!-- ゲームオーバー -->
+  <div id="gameOverOverlay">
+    <div>ゲームオーバー</div>
+    <div id="finalScore" style="margin-top:10px;">スコア: 0</div>
+    <div style="margin-top:8px;font-size:16px;">Rキーまたはリスタートボタンでリスタート</div>
+    <div class="btn" id="resetBtn">リセット</div>
+  </div>
+  <div id="touchControls">
+    <div id="leftBtn" class="touch-btn">◀</div>
+    <div id="rightBtn" class="touch-btn">▶</div>
+    <div id="jumpBtn" class="touch-btn">▲</div>
+  </div>
+</div>
+
+<!-- GACHA -->
+<div id="gachaScreen" class="screen">
+  <h2>ガチャ</h2>
+  <p>GP: <span id="gpDisplayGacha">25</span></p>
+  <button id="pullBtn">10GPで1回引く</button>
+  <button id="pull11Btn">100GPで11連ガチャ</button>
+  <div id="gachaResult"></div>
+  <button id="buyGPBtn">GPを購入(+50GP)</button>
+  <button id="backHomeFromGacha">ホームに戻る</button>
+</div>
+
+<!-- SKIN -->
+<div id="skinScreen" class="screen">
+  <h2>スキン</h2>
+  <div class="skinList" id="skinCollection"></div>
+  <button id="backHomeFromSkin">ホームに戻る</button>
+</div>
+
+<!-- ACCOUNT -->
+<div id="accountScreen" class="screen">
+  <h2>アカウント</h2>
+  <div id="accountContent"></div>
+  <button id="backHomeFromAccount">ホームに戻る</button>
+</div>
+
+<script>
+// -------------------- SPA管理 --------------------
+let gp=25;
+let ownedSkins=[];
+let loggedIn=false;
+let username='';
+
+function showScreen(id){
+  ['homeScreen','gameScreen','gachaScreen','skinScreen','accountScreen'].forEach(s=>document.getElementById(s).classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  updateAllGP();
+}
+
+function updateAllGP(){
+  document.getElementById('gpDisplay').textContent = gp;
+  document.getElementById('gpDisplayGacha').textContent = gp;
+}
+
+// ホームボタン
+document.getElementById('playBtn').addEventListener('click',()=>showScreen('gameScreen'));
+document.getElementById('gachaBtn').addEventListener('click',()=>showScreen('gachaScreen'));
+document.getElementById('skinBtn').addEventListener('click',()=>showScreen('skinScreen'));
+document.getElementById('accountBtn').addEventListener('click',()=>showScreen('accountScreen'));
+
+// 各画面からホーム
+document.getElementById('backHomeFromGame').addEventListener('click',()=>showScreen('homeScreen'));
+document.getElementById('backHomeFromGacha').addEventListener('click',()=>showScreen('homeScreen'));
+document.getElementById('backHomeFromSkin').addEventListener('click',()=>showScreen('homeScreen'));
+document.getElementById('backHomeFromAccount').addEventListener('click',()=>showScreen('homeScreen'));
+
+// アカウント管理
+function loginUser(name){ loggedIn=true; username=name; gp=25; updateAccount();}
+function logoutUser(){ loggedIn=false; username=''; gp=0; updateAccount();}
+function updateAccount(){
+  if(loggedIn){
+    document.getElementById('accountContent').innerHTML=`
+      <p>ユーザー名: ${username}</p>
+      <p>GP: ${gp}</p>
+      <button onclick="logoutUser()">ログアウト</button>
+    `;
+  }else{
+    document.getElementById('accountContent').innerHTML=`
+      <input type="text" id="usernameInput" placeholder="ユーザー名">
+      <button onclick="loginUser(document.getElementById('usernameInput').value)">ログイン</button>
+    `;
+  }
+}
+updateAccount();
+
+// GP購入
+document.getElementById('buyGPBtn').addEventListener('click',()=>{
+  gp+=50; updateAllGP();
+});
+
+// -------------------- ジャンプゲーム --------------------
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+let W,H;
+function resizeCanvas(){ const rect=canvas.getBoundingClientRect(); W=rect.width; H=rect.height; canvas.width=W; canvas.height=H; }
+window.addEventListener('resize',resizeCanvas);
+resizeCanvas();
+
+let cameraY=0;
+const player={startX:W/2,startY:H-120,x:W/2,y:H-120,w:32,h:40,vx:0,vy:0,speed:3.2,jumpPower:-10.5,onGround:false,maxSpeed:5};
+let wasOnGround=false, gravity=0.45, friction=0.98, platforms=[],PLATFORM_WIDTH=80,PLATFORM_HEIGHT=12,running=false,paused=false,lastTimestamp=0,score=0,maxHeight=player.y;
+const keys={};
+window.addEventListener('keydown', e=>{ keys[e.code]=true; if(e.code==='KeyR'){ init(); start(); hideGameOver(); } });
+window.addEventListener('keyup', e=>keys[e.code]=false);
+
+function resetPlayer(){ player.x=player.startX; player.y=player.startY; player.vx=0; player.vy=0; player.onGround=false; }
+resetPlayer();
+
+document.getElementById('startBtn')?.addEventListener('click', ()=>{ if(!running){start(); hideGameOver();} else {init(); start(); hideGameOver();} });
+document.getElementById('pauseBtn')?.addEventListener('click', ()=>{ paused=!paused; document.getElementById('pauseBtn').textContent=paused?'再開':'一時停止'; });
+document.getElementById('resetBtn')?.addEventListener('click', ()=>{ init(); start(); hideGameOver(); });
+
+const sounds={jump:new Audio('sound_effects/jump.wav'), land:new Audio('sound_effects/land.mp3'), spring:new Audio('sound_effects/spring.mp3'), milestone:new Audio('sound_effects/milestone.mp3'), score:new Audio('sound_effects/score.mp3')};
+function playSound(name){ if(sounds[name]){ try{ sounds[name].play(); } catch(e){} } }
+
+function handleTouch(x){
+  const rect=canvas.getBoundingClientRect(), cx=x-rect.left;
+  if(cx<rect.width*0.4){ keys['ArrowLeft']=true; keys['ArrowRight']=false; }
+  else if(cx>rect.width*0.6){ keys['ArrowRight']=true; keys['ArrowLeft']=false; }
+  else keys['Space']=true;
+}
+canvas.addEventListener('touchstart', e=>handleTouch(e.touches[0].clientX));
+canvas.addEventListener('touchmove', e=>handleTouch(e.touches[0].clientX));
+canvas.addEventListener('touchend', e=>{ keys['ArrowLeft']=keys['ArrowRight']=keys['Space']=false; });
+
+// スマホボタン
+['left','right','jump'].forEach(dir=>{
+  const btn=document.getElementById(dir+'Btn');
+  btn.addEventListener('touchstart', e=>{ keys[dir==='left'?'ArrowLeft':dir==='right'?'ArrowRight':'Space']=true; e.preventDefault(); });
+  btn.addEventListener('touchend', e=>{ keys[dir==='left'?'ArrowLeft':dir==='right'?'ArrowRight':'Space']=false; e.preventDefault(); });
+});
+
+// ゲームループ
+function init(){
+  resizeCanvas(); cameraY=0; platforms=[]; resetPlayer(); maxHeight=player.y; score=0; paused=false; hideGameOver();
+  const gap=90;
+  for(let i=0;i<20;i++){
+    const x=Math.random()*(W-PLATFORM_WIDTH), y=H - i*gap - 40;
+    platforms.push({x,y,w:PLATFORM_WIDTH,h:PLATFORM_HEIGHT,type:'normal',vx:0});
+  }
+  platforms[0].x=W/2-60;
+  player.x=platforms[0].x+PLATFORM_WIDTH/2; player.y=platforms[0].y-player.h/2; player.onGround=true;
+}
+function start(){ if(running) return; running=true; lastTimestamp=performance.now(); requestAnimationFrame(loop); }
+function loop(ts){ if(!running) return; const dt=Math.min(34,ts-lastTimestamp); lastTimestamp=ts; if(!paused) update(dt/16); render(); requestAnimationFrame(loop); }
+function update(delta){
+  let move=0; if(keys['ArrowLeft']||keys['KeyA']) move-=1; if(keys['ArrowRight']||keys['KeyD']) move+=1;
+  player.vx += move*0.6*player.speed*delta; player.vx*=friction;
+  if(player.vx>player.maxSpeed) player.vx=player.maxSpeed; if(player.vx<-player.maxSpeed) player.vx=-player.maxSpeed;
+  if((keys['Space']||keys['KeyZ']||keys['ArrowUp']) && player.onGround){ player.vy=player.jumpPower; player.onGround=false; playSound('jump'); }
+  if(keys['Space'] && !navigator.maxTouchPoints) keys['Space']=false;
+  player.vy+=gravity*delta; player.x+=player.vx*delta; player.y+=player.vy*delta;
+  if(player.x<-player.w) player.x=W+player.w; if(player.x>W+player.w) player.x=-player.w;
+  player.onGround=false;
+  for(let p of platforms){
+    const px1=player.x-player.w/2, px2=player.x+player.w/2, py=player.y+player.h/2;
+    const platX1=p.x, platX2=p.x+p.w, platY=p.y;
+    if(player.vy>0 && py<=platY+6 && py+player.vy>=platY && px2>platX1 && px1<platX2){
+      player.y=p.y-player.h/2; player.vy=0; player.onGround=true;
+      if(p.type==='spring'){ player.vy=player.jumpPower*1.6; playSound('spring'); }
+      if(p.type==='moving') player.x+=p.vx*2;
+    }
+  }
+  if(player.onGround && !wasOnGround) playSound('land');
+  wasOnGround=player.onGround;
+  platforms.forEach(p=>{ if(p.type==='moving'){ p.x+=p.vx*delta; if(p.x<0||p.x+p.w>W) p.vx*=-1; }});
+  const topThreshold=H*0.35; const targetCameraY=player.y-topThreshold;
+  cameraY+=(targetCameraY-cameraY)*0.08;
+  platforms=platforms.filter(p=>p.y-cameraY<H+400 && p.y-cameraY>-200);
+  if(player.y-cameraY>H+60){ running=false; showGameOver(); }
+  if(player.y<maxHeight) maxHeight=player.y;
+  let newScore=Math.max(0,Math.floor(H-maxHeight));
+  score=newScore; document.getElementById('gpDisplay').textContent='スコア: '+score;
+}
+
+function render(){
+  ctx.clearRect(0,0,W,H);
+  let t=Math.min(1,maxHeight/5000);
+  const topColor=`rgb(${7+t*80},${16+t*60},${33+t*60})`;
+  const bottomColor=`rgb(${6+t*60},${32+t*60},${50+t*60})`;
+  const grad=ctx.createLinearGradient(0,0,0,H); grad.addColorStop(0,topColor); grad.addColorStop(1,bottomColor);
+  ctx.fillStyle=grad; ctx.fillRect(0,0,W,H);
+  platforms.forEach(p=>{
+    const drawY=p.y-cameraY;
+    ctx.fillStyle=p.type==='spring'?'#ffd7a6':p.type==='moving'?'#a6ffd7':'#8bd3c7';
+    ctx.fillRect(p.x, drawY, p.w, p.h);
+  });
+  ctx.fillStyle=var(--player); ctx.fillRect(player.x-player.w/2, player.y-player.h/2-cameraY, player.w, player.h);
+}
+function showGameOver(){ document.getElementById('gameOverOverlay').style.display='flex'; document.getElementById('finalScore').textContent='スコア: '+score; }
+function hideGameOver(){ document.getElementById('gameOverOverlay').style.display='none'; }
+
+init(); start();
+
+// -------------------- GACHA --------------------
+const skins=['🍎','🍌','🍇','🍉','🥝','🍒','🥑'];
+function updateSkinList(){ 
+  const container=document.getElementById('skinCollection');
+  container.innerHTML=ownedSkins.map(s=>`<span style="font-size:32px;margin:4px">${s}</span>`).join('');
+}
+document.getElementById('pullBtn').addEventListener('click',()=>{
+  if(gp<10) return alert('GPが足りません');
+  gp-=10; const skin=skins[Math.floor(Math.random()*skins.length)]; ownedSkins.push(skin); updateSkinList(); updateAllGP();
+  document.getElementById('gachaResult').textContent=`${skin}を入手！`;
+});
+document.getElementById('pull11Btn').addEventListener('click',()=>{
+  if(gp<100) return alert('GPが足りません');
+  gp-=100; let res=''; for(let i=0;i<11;i++){ const skin=skins[Math.floor(Math.random()*skins.length)]; ownedSkins.push(skin); res+=skin+' '; } updateSkinList(); updateAllGP();
+  document.getElementById('gachaResult').textContent=`${res}を入手！`;
+});
+updateSkinList();
+</script>
+</body>
+</html>
